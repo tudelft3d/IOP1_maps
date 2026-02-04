@@ -1,41 +1,113 @@
-{{ define "main" }}
-<h1>{{ .Site.Title }}</h1>
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Site.Title }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007acc;
+            padding-bottom: 10px;
+        }
+        .map-list {
+            display: grid;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        .map-item {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+            transition: background-color 0.3s;
+        }
+        .map-item:hover {
+            background: #f0f0f0;
+        }
+        .map-link {
+            text-decoration: none;
+            color: #007acc;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .map-link:hover {
+            text-decoration: underline;
+        }
+        .description {
+            color: #666;
+            margin-top: 10px;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #888;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ .Site.Title }}</h1>
 
-<p>Welcome to the maps collection! Below you'll find links to all the maps submitted by students:</p>
+        <p>Welcome to the maps collection! Below you'll find links to all the maps submitted by students:</p>
 
-<div class="map-list">
-    {{ $mapsDir := "maps" }}
-    {{ $staticDir := path.Join "static" $mapsDir }}
-    {{ range (readDir $staticDir) }}
-        {{ if .IsDir }}
-        <div class="map-item">
-            <a href="{{ printf "%smaps/%s/" $.Site.BaseURL .Name }}" class="map-link" target="_blank">
-                Map: {{ .Name }}
-            </a>
-            <div class="description">
-                Created: {{ .ModTime.Format "January 2, 2006" }}
+        <div class="map-list">
+            {{ $mapsDir := "maps" }}
+            {{ $staticDir := path.Join "static" $mapsDir }}
+            {{ range (readDir $staticDir) }}
+                {{ if .IsDir }}
+                <div class="map-item">
+                    <a href="{{ printf "%smaps/%s/" $.Site.BaseURL .Name }}" class="map-link" target="_blank">
+                        Map: {{ .Name }}
+                    </a>
+                    <div class="description">
+                        Created: {{ .ModTime.Format "January 2, 2006" }}
+                    </div>
+                </div>
+                {{ end }}
+            {{ end }}
+            
+            {{ if eq (len (readDir "static/maps")) 0 }}
+            <div class="map-item">
+                <p style="text-align: center; color: #666; font-style: italic;">
+                    No maps have been submitted yet. Students can create pull requests to add their maps to the <code>static/maps/</code> directory.
+                </p>
             </div>
+            {{ end }}
         </div>
-        {{ end }}
-    {{ end }}
-    
-    {{ if eq (len (readDir "static/maps")) 0 }}
-    <div class="map-item">
-        <p style="text-align: center; color: #666; font-style: italic;">
-            No maps have been submitted yet. Students can create pull requests to add their maps to the <code>maps/</code> directory.
-        </p>
-    </div>
-    {{ end }}
-</div>
 
-<div style="margin-top: 30px; padding: 20px; background: #e8f4fd; border-radius: 8px;">
-    <h3>How to contribute:</h3>
-    <ol>
-        <li>Fork this repository</li>
-        <li>Create a new directory in <code>maps/</code> with your student ID or project name</li>
-        <li>Add your map files (HTML, images, etc.) to your directory</li>
-        <li>Create a pull request</li>
-        <li>Once merged, your map will appear on this page!</li>
-    </ol>
-</div>
-{{ end }}
+        <div style="margin-top: 30px; padding: 20px; background: #e8f4fd; border-radius: 8px;">
+            <h3>How to contribute:</h3>
+            <ol>
+                <li>Fork this repository</li>
+                <li>Create a new directory in <code>static/maps/</code> with your student ID or project name</li>
+                <li>Add your map files (HTML, images, etc.) to your directory</li>
+                <li>Create a pull request</li>
+                <li>Once merged, your map will appear on this page!</li>
+            </ol>
+        </div>
+        
+        <div class="footer">
+            <p>{{ .Site.Params.description }}</p>
+            <p><small>Built with <a href="https://gohugo.io/">Hugo</a></small></p>
+        </div>
+    </div>
+</body>
+</html>
