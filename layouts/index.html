@@ -1,0 +1,41 @@
+{{ define "main" }}
+<h1>{{ .Site.Title }}</h1>
+
+<p>Welcome to the maps collection! Below you'll find links to all the maps submitted by students:</p>
+
+<div class="map-list">
+    {{ $mapsDir := "maps" }}
+    {{ $staticDir := path.Join "static" $mapsDir }}
+    {{ range (readDir $staticDir) }}
+        {{ if .IsDir }}
+        <div class="map-item">
+            <a href="{{ printf "%smaps/%s/" $.Site.BaseURL .Name }}" class="map-link" target="_blank">
+                Map: {{ .Name }}
+            </a>
+            <div class="description">
+                Created: {{ .ModTime.Format "January 2, 2006" }}
+            </div>
+        </div>
+        {{ end }}
+    {{ end }}
+    
+    {{ if eq (len (readDir "static/maps")) 0 }}
+    <div class="map-item">
+        <p style="text-align: center; color: #666; font-style: italic;">
+            No maps have been submitted yet. Students can create pull requests to add their maps to the <code>maps/</code> directory.
+        </p>
+    </div>
+    {{ end }}
+</div>
+
+<div style="margin-top: 30px; padding: 20px; background: #e8f4fd; border-radius: 8px;">
+    <h3>How to contribute:</h3>
+    <ol>
+        <li>Fork this repository</li>
+        <li>Create a new directory in <code>maps/</code> with your student ID or project name</li>
+        <li>Add your map files (HTML, images, etc.) to your directory</li>
+        <li>Create a pull request</li>
+        <li>Once merged, your map will appear on this page!</li>
+    </ol>
+</div>
+{{ end }}

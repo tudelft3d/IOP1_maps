@@ -1,0 +1,7 @@
+baseURL = 'http://localhost:1313/'
+languageCode = 'en-us'
+title = 'IOP1 Maps Collection'
+
+
+[params]
+  description = 'A collection of maps created by students'
