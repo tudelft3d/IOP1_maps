@@ -1,7 +1,6 @@
-baseURL = 'http://localhost:1313/'
+baseURL = 'https://tudelft3d.github.io/IOP1_maps/'
 languageCode = 'en-us'
 title = 'IOP1 Maps Collection'
-
 
 [params]
   description = 'A collection of maps created by students'
