@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <link rel="stylesheet" href="css/leaflet-measure.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title>Mannen & Vrouwen Lansingerland</title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/L.Control.Locate.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="js/leaflet-measure.js"></script>
+        <script src="data/lansingerlandgemeenten_2.js"></script>
+        <script src="data/CBSwijkenbuurtenbuurten_mannen_3.js"></script>
+        <script src="data/CBSwijkenbuurtenbuurten_vrouwen_4.js"></script>
+        <script>
+        var m2px = 1;
+        function newM2px() {
+            var centerLatLng = map.getCenter();
+            var pointC = map.latLngToContainerPoint(centerLatLng);
+            var pointX = [pointC.x + 100, pointC.y];
+
+            var latLngC = map.containerPointToLatLng(pointC);
+            var latLngX = map.containerPointToLatLng(pointX);
+
+            var distanceX = latLngC.distanceTo(latLngX)/100;
+
+            reciprocal = 1 / distanceX;
+            m2px = reciprocal;
+        }
+        function geoStyle(m) {
+            return Math.ceil(m * m2px);
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[51.94978900229757,4.390915573961071],[52.058075315538325,4.678913266796612]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var title = new L.Control({'position':'topleft'});
+        title.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+        title.update = function () {
+            this._div.innerHTML = '<h2>Mannen & Vrouwen Lansingerland</h2>';
+        };
+        title.addTo(map);
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        var measureControl = new L.Control.Measure({
+            position: 'topleft',
+            primaryLengthUnit: 'meters',
+            secondaryLengthUnit: 'kilometers',
+            primaryAreaUnit: 'sqmeters',
+            secondaryAreaUnit: 'hectares'
+        });
+        measureControl.addTo(map);
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+            map.setMaxBounds(map.getBounds());
+            map.setMinZoom(map.getZoom());
+        }
+        map.createPane('pane_Googlesatelite_0');
+        map.getPane('pane_Googlesatelite_0').style.zIndex = 400;
+        var layer_Googlesatelite_0 = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            pane: 'pane_Googlesatelite_0',
+            opacity: 0.683,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 18
+        });
+        layer_Googlesatelite_0;
+        map.addLayer(layer_Googlesatelite_0);
+        map.createPane('pane_OpenStreetMap_1');
+        map.getPane('pane_OpenStreetMap_1').style.zIndex = 401;
+        var layer_OpenStreetMap_1 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OpenStreetMap_1',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OpenStreetMap_1;
+        map.addLayer(layer_OpenStreetMap_1);
+        function pop_lansingerlandgemeenten_2(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">naam</th>\
+                        <td>' + (feature.properties['naam'] !== null ? autolinker.link(String(feature.properties['naam']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">ligtInProvincieNaam</th>\
+                        <td>' + (feature.properties['ligtInProvincieNaam'] !== null ? autolinker.link(String(feature.properties['ligtInProvincieNaam']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_lansingerlandgemeenten_2_0() {
+            return {
+                pane: 'pane_lansingerlandgemeenten_2',
+                opacity: 1,
+                color: 'rgba(0,0,0,1.0)',
+                dashArray: 'null',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: geoStyle(38.0), 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,0.6196078431372549)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_lansingerlandgemeenten_2');
+        map.getPane('pane_lansingerlandgemeenten_2').style.zIndex = 402;
+        map.getPane('pane_lansingerlandgemeenten_2').style['mix-blend-mode'] = 'normal';
+        var layer_lansingerlandgemeenten_2 = new L.geoJson(json_lansingerlandgemeenten_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_lansingerlandgemeenten_2',
+            layerName: 'layer_lansingerlandgemeenten_2',
+            pane: 'pane_lansingerlandgemeenten_2',
+            onEachFeature: pop_lansingerlandgemeenten_2,
+            style: style_lansingerlandgemeenten_2_0,
+        });
+        bounds_group.addLayer(layer_lansingerlandgemeenten_2);
+        map.addLayer(layer_lansingerlandgemeenten_2);
+        function pop_CBSwijkenbuurtenbuurten_mannen_3(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">mannen</th>\
+                        <td>' + (feature.properties['mannen'] !== null ? autolinker.link(String(feature.properties['mannen']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_CBSwijkenbuurtenbuurten_mannen_3_0(feature) {
+            if (feature.properties['mannen'] >= 0.000000 && feature.properties['mannen'] <= 40.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_mannen_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.496)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,0.496)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['mannen'] >= 385.000000 && feature.properties['mannen'] <= 645.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_mannen_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.496)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(128,255,253,0.496)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['mannen'] >= 40.000000 && feature.properties['mannen'] <= 385.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_mannen_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.496)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(191,255,254,0.496)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['mannen'] >= 645.000000 && feature.properties['mannen'] <= 855.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_mannen_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.496)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(64,255,252,0.496)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['mannen'] >= 855.000000 && feature.properties['mannen'] <= 1990.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_mannen_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.496)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,255,251,0.496)',
+                interactive: true,
+            }
+            }
+        }
+        map.createPane('pane_CBSwijkenbuurtenbuurten_mannen_3');
+        map.getPane('pane_CBSwijkenbuurtenbuurten_mannen_3').style.zIndex = 403;
+        map.getPane('pane_CBSwijkenbuurtenbuurten_mannen_3').style['mix-blend-mode'] = 'multiply';
+        var layer_CBSwijkenbuurtenbuurten_mannen_3 = new L.geoJson(json_CBSwijkenbuurtenbuurten_mannen_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_CBSwijkenbuurtenbuurten_mannen_3',
+            layerName: 'layer_CBSwijkenbuurtenbuurten_mannen_3',
+            pane: 'pane_CBSwijkenbuurtenbuurten_mannen_3',
+            onEachFeature: pop_CBSwijkenbuurtenbuurten_mannen_3,
+            style: style_CBSwijkenbuurtenbuurten_mannen_3_0,
+        });
+        bounds_group.addLayer(layer_CBSwijkenbuurtenbuurten_mannen_3);
+        map.addLayer(layer_CBSwijkenbuurtenbuurten_mannen_3);
+        function pop_CBSwijkenbuurtenbuurten_vrouwen_4(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">vrouwen</th>\
+                        <td>' + (feature.properties['vrouwen'] !== null ? autolinker.link(String(feature.properties['vrouwen']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_CBSwijkenbuurtenbuurten_vrouwen_4_0(feature) {
+            if (feature.properties['vrouwen'] >= 0.000000 && feature.properties['vrouwen'] <= 40.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_vrouwen_4',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.5)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(247,251,255,0.5)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['vrouwen'] >= 40.000000 && feature.properties['vrouwen'] <= 385.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_vrouwen_4',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.5)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(249,188,191,0.5)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['vrouwen'] >= 385.000000 && feature.properties['vrouwen'] <= 645.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_vrouwen_4',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.5)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(251,126,128,0.5)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['vrouwen'] >= 645.000000 && feature.properties['vrouwen'] <= 855.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_vrouwen_4',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.5)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(253,63,64,0.5)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['vrouwen'] >= 855.000000 && feature.properties['vrouwen'] <= 1990.000000 ) {
+                return {
+                pane: 'pane_CBSwijkenbuurtenbuurten_vrouwen_4',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.5)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,0,0,0.5)',
+                interactive: true,
+            }
+            }
+        }
+        map.createPane('pane_CBSwijkenbuurtenbuurten_vrouwen_4');
+        map.getPane('pane_CBSwijkenbuurtenbuurten_vrouwen_4').style.zIndex = 404;
+        map.getPane('pane_CBSwijkenbuurtenbuurten_vrouwen_4').style['mix-blend-mode'] = 'multiply';
+        var layer_CBSwijkenbuurtenbuurten_vrouwen_4 = new L.geoJson(json_CBSwijkenbuurtenbuurten_vrouwen_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_CBSwijkenbuurtenbuurten_vrouwen_4',
+            layerName: 'layer_CBSwijkenbuurtenbuurten_vrouwen_4',
+            pane: 'pane_CBSwijkenbuurtenbuurten_vrouwen_4',
+            onEachFeature: pop_CBSwijkenbuurtenbuurten_vrouwen_4,
+            style: style_CBSwijkenbuurtenbuurten_vrouwen_4_0,
+        });
+        bounds_group.addLayer(layer_CBSwijkenbuurtenbuurten_vrouwen_4);
+        map.addLayer(layer_CBSwijkenbuurtenbuurten_vrouwen_4);
+        var overlaysTree = [
+            {label: 'CBS wijkenbuurtenbuurten_vrouwen<br /><table><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_vrouwen_4_0400.png" /></td><td>0 - 40</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_vrouwen_4_403851.png" /></td><td>40 - 385</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_vrouwen_4_3856452.png" /></td><td>385 - 645</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_vrouwen_4_6458553.png" /></td><td>645 - 855</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_vrouwen_4_85519904.png" /></td><td>855 - 1990</td></tr></table>', layer: layer_CBSwijkenbuurtenbuurten_vrouwen_4},
+            {label: 'CBS wijkenbuurtenbuurten_mannen<br /><table><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_mannen_3_0400.png" /></td><td>0 - 40</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_mannen_3_3856451.png" /></td><td>385 - 645</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_mannen_3_403852.png" /></td><td>40 - 385</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_mannen_3_6458553.png" /></td><td>645 - 855</td></tr><tr><td style="text-align: center;"><img src="legend/CBSwijkenbuurtenbuurten_mannen_3_85519904.png" /></td><td>855 - 1990</td></tr></table>', layer: layer_CBSwijkenbuurtenbuurten_mannen_3},
+            {label: '<img src="legend/lansingerlandgemeenten_2.png" /> lansingerland — gemeenten', layer: layer_lansingerlandgemeenten_2},
+            {label: "OpenStreetMap", layer: layer_OpenStreetMap_1},
+            {label: "Google satelite", layer: layer_Googlesatelite_0, radioGroup: 'bm' },]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: false, 
+        });
+        lay.addTo(map);
+		document.addEventListener("DOMContentLoaded", function() {
+            // set new Layers List height which considers toggle icon
+            function newLayersListHeight() {
+                var layerScrollbarElement = document.querySelector('.leaflet-control-layers-scrollbar');
+                if (layerScrollbarElement) {
+                    var layersListElement = document.querySelector('.leaflet-control-layers-list');
+                    var originalHeight = layersListElement.style.height 
+                        || window.getComputedStyle(layersListElement).height;
+                    var newHeight = parseFloat(originalHeight) - 50;
+                    layersListElement.style.height = newHeight + 'px';
+                }
+            }
+            var isLayersListExpanded = true;
+            var controlLayersElement = document.querySelector('.leaflet-control-layers');
+            var toggleLayerControl = document.querySelector('.leaflet-control-layers-toggle');
+            // toggle Collapsed/Expanded and apply new Layers List height
+            toggleLayerControl.addEventListener('click', function() {
+                if (isLayersListExpanded) {
+                    controlLayersElement.classList.remove('leaflet-control-layers-expanded');
+                } else {
+                    controlLayersElement.classList.add('leaflet-control-layers-expanded');
+                }
+                isLayersListExpanded = !isLayersListExpanded;
+                newLayersListHeight()
+            });	
+			// apply new Layers List height if toggle layerstree
+			if (controlLayersElement) {
+				controlLayersElement.addEventListener('click', function(event) {
+					var toggleLayerHeaderPointer = event.target.closest('.leaflet-layerstree-header-pointer span');
+					if (toggleLayerHeaderPointer) {
+						newLayersListHeight();
+					}
+				});
+			}
+            // Collapsed/Expanded at Start to apply new height
+            setTimeout(function() {
+                toggleLayerControl.click();
+            }, 10);
+            setTimeout(function() {
+                toggleLayerControl.click();
+            }, 10);
+            // Collapsed touch/small screen
+            var isSmallScreen = window.innerWidth < 650;
+            if (isSmallScreen) {
+                setTimeout(function() {
+                    controlLayersElement.classList.remove('leaflet-control-layers-expanded');
+                    isLayersListExpanded = !isLayersListExpanded;
+                }, 500);
+            }  
+        });       
+        setBounds();
+        newM2px();
+
+            layer_lansingerlandgemeenten_2.setStyle(style_lansingerlandgemeenten_2_0);
+        map.on("zoomend", function(){
+            newM2px();
+
+            layer_lansingerlandgemeenten_2.setStyle(style_lansingerlandgemeenten_2_0);
+        });
+        resetLabels([layer_CBSwijkenbuurtenbuurten_vrouwen_4]);
+        map.on("zoomend", function(){
+            resetLabels([layer_CBSwijkenbuurtenbuurten_vrouwen_4]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_CBSwijkenbuurtenbuurten_vrouwen_4]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_CBSwijkenbuurtenbuurten_vrouwen_4]);
+        });
+        </script>        
+    </body>
+</html>
